@@ -35,8 +35,8 @@ const icons = {
 };
 
 const items = [
-  { href: "/live", label: "Live", icon: "live" },
   { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
+  { href: "/live", label: "Live", icon: "live" },
   { href: "/history", label: "History", icon: "history" },
 ];
 
