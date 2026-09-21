@@ -6,7 +6,7 @@ const BATCH_SIZE = 100;
 function validate(body) {
   if (!body || typeof body !== "object") return "Body must be a JSON object.";
   if (typeof body.pole_id !== "string" || !body.pole_id) return "pole_id must be a non-empty string.";
-  for (const key of ["x_m", "y_m", "temp_c", "uptime_s"]) {
+  for (const key of ["x_m", "y_m", "temp_c", "voltage_v"]) {
     if (typeof body[key] !== "number" || !Number.isFinite(body[key])) return `${key} must be a number.`;
   }
   for (const key of ["x_status", "y_status"]) {
@@ -30,8 +30,8 @@ export async function POST(request) {
   const error = validate(body);
   if (error) return Response.json({ error }, { status: 400 });
 
-  const { pole_id, x_m, y_m, temp_c, uptime_s, x_status, y_status } = body;
-  const fields = { x_m, y_m, temp_c, uptime_s, x_status, y_status };
+  const { pole_id, x_m, y_m, temp_c, voltage_v, x_status, y_status } = body;
+  const fields = { x_m, y_m, temp_c, voltage_v, x_status, y_status };
   // FieldValue.serverTimestamp() can't be used inside an array element, so the
   // API route's own clock stands in for it (this runs server-side, not on the device).
   const reading = { ...fields, ts: Date.now() };

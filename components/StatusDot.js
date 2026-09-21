@@ -1,7 +1,7 @@
-export default function StatusDot({ tone, children }) {
+export default function StatusDot({ tone, children, pulse = false }) {
   return (
-    <span className="status-badge">
-      <span className={`status-dot status-dot-${tone}`} aria-hidden="true" />
+    <span className={`status-badge status-badge-${tone}`}>
+      <span className={`status-dot status-dot-${tone} ${pulse ? "pulse" : ""}`} aria-hidden="true" />
       {children}
     </span>
   );

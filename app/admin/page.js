@@ -29,40 +29,63 @@ export default function Admin() {
     setMessage("");
     try {
       await updateDoc(doc(db, "users", email), { role: newRole });
-      setMessage("Role saved.");
+      setMessage("Role successfully updated.");
     } catch {
-      setMessage("Could not save the role. Try again.");
+      setMessage("Could not save role. Try again.");
     }
   }
 
-  if (loading || role !== "admin") return <main className="center">Loading</main>;
+  if (loading || role !== "admin") {
+    return (
+      <main className="center">
+        <div className="spinner" />
+        <span>Loading user permissions...</span>
+      </main>
+    );
+  }
 
   return (
     <AppShell title="Manage users">
-      <p className="muted">
-        <b>user</b> can view data. <b>admin</b> can also manage roles and clear history.
-        <b> device</b> is for the ESP32 account and can write readings.
-      </p>
-      {message && <p className="stamp" role="status">{message}</p>}
+      <div className="page-header">
+        <h1>User Management</h1>
+        <p>Assign access roles for portal users and ESP32 device accounts.</p>
+      </div>
+
+      <div className="stat-tile" style={{ marginBottom: "1.5rem" }}>
+        <p className="muted" style={{ margin: 0 }}>
+          <b>user</b> can view live telemetry & history. <b>admin</b> can manage user roles and clear sensor log history. <b>device</b> account is used by ESP32 microcontrollers to write readings.
+        </p>
+      </div>
+
+      {message && <p className="error" style={{ background: "#f0fdf4", color: "#166534", borderColor: "#bbf7d0" }} role="status">{message}</p>}
+
       <div className="scroll">
         <table>
-          <thead><tr><th>Email</th><th>Role</th></tr></thead>
+          <thead>
+            <tr>
+              <th>User Email</th>
+              <th>Assigned Role</th>
+            </tr>
+          </thead>
           <tbody>
             {users.map((u) => (
               <tr key={u.email}>
-                <td>{u.email}</td>
+                <td style={{ fontWeight: 600 }}>
+                  {u.email}
+                  {u.email === user.email.toLowerCase() && <span className="muted"> (you)</span>}
+                </td>
                 <td>
                   <select
                     value={u.role}
                     disabled={u.email === user.email.toLowerCase()}
                     onChange={(e) => changeRole(u.email, e.target.value)}
                     aria-label={`Role for ${u.email}`}
+                    style={{ padding: "0.4rem 0.75rem", fontSize: "0.85rem" }}
                   >
                     <option value="user">user</option>
                     <option value="admin">admin</option>
                     <option value="device">device</option>
                   </select>
-                  {u.email === user.email.toLowerCase() && <span className="muted"> (you)</span>}
                 </td>
               </tr>
             ))}

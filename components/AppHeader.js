@@ -5,13 +5,22 @@ import { useAuth } from "@/lib/AuthContext";
 
 export default function AppHeader({ title }) {
   const { user, role } = useAuth();
+  const initial = user?.email ? user.email.charAt(0).toUpperCase() : "U";
 
   return (
     <header className="bar">
-      <strong>{title}</strong>
+      <div className="bar-title-group">
+        <h2 className="bar-title">{title}</h2>
+      </div>
       <nav>
-        <span className="who">{user?.email} ({role})</span>
-        <button className="link" onClick={() => signOut(auth)}>Sign out</button>
+        <div className="user-badge">
+          <div className="user-avatar">{initial}</div>
+          <span>{user?.email}</span>
+          {role && <span className={`role-pill ${role}`}>{role}</span>}
+        </div>
+        <button className="btn-signout" onClick={() => signOut(auth)}>
+          Sign out
+        </button>
       </nav>
     </header>
   );

@@ -45,30 +45,35 @@ export default function Sidebar() {
   const { role } = useAuth();
 
   return (
-    <nav className="sidebar" aria-label="Main">
-      {items.map((item) => (
-        <Link
-          key={item.href}
-          href={item.href}
-          className={`sidebar-item ${pathname === item.href ? "active" : ""}`}
-          aria-label={item.label}
-          aria-current={pathname === item.href ? "page" : undefined}
-        >
-          {icons[item.icon]}
-          <span className="sidebar-label">{item.label}</span>
-        </Link>
-      ))}
-      {role === "admin" && (
-        <Link
-          href="/admin"
-          className={`sidebar-item ${pathname === "/admin" ? "active" : ""}`}
-          aria-label="Manage users"
-          aria-current={pathname === "/admin" ? "page" : undefined}
-        >
-          {icons.admin}
-          <span className="sidebar-label">Manage users</span>
-        </Link>
-      )}
+    <nav className="sidebar" aria-label="Main navigation">
+      <div className="sidebar-brand" title="ATD Portal">
+        ATD
+      </div>
+      <div className="sidebar-nav">
+        {items.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`sidebar-item ${pathname === item.href ? "active" : ""}`}
+            aria-label={item.label}
+            aria-current={pathname === item.href ? "page" : undefined}
+          >
+            {icons[item.icon]}
+            <span className="sidebar-label">{item.label}</span>
+          </Link>
+        ))}
+        {role === "admin" && (
+          <Link
+            href="/admin"
+            className={`sidebar-item ${pathname === "/admin" ? "active" : ""}`}
+            aria-label="Manage users"
+            aria-current={pathname === "/admin" ? "page" : undefined}
+          >
+            {icons.admin}
+            <span className="sidebar-label">Manage users</span>
+          </Link>
+        )}
+      </div>
     </nav>
   );
 }
