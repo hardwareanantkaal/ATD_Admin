@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/AuthContext";
@@ -7,6 +7,10 @@ import { usePoles } from "@/lib/usePoles";
 import { isOnline } from "@/lib/deviceStatus";
 import AppShell from "@/components/AppShell";
 import StatusDot from "@/components/StatusDot";
+
+// Firmware sends a fixed 5.0 V today (see iot.ino SUPPLY_V) - this filter is
+// inert until real battery sensing ships, but the UI is ready for it.
+const LOW_BATTERY_V = 3.5;
 
 function ago(ms) {
   const s = Math.max(0, Math.round(ms / 1000));
@@ -18,11 +22,56 @@ function ago(ms) {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+const icons = {
+  radio: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <circle cx="12" cy="12" r="2" />
+      <path d="M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.5 5.5a9 9 0 0 0 0 13M18.5 5.5a9 9 0 0 1 0 13" />
+    </svg>
+  ),
+  wifi: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 12.5a11 11 0 0 1 14 0M8.5 16a6 6 0 0 1 7 0" />
+      <circle cx="12" cy="19.5" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  ),
+  wifiOff: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8.5 16a6 6 0 0 1 7 0M5 12.5a11 11 0 0 1 3.5-2.5M15.5 10a11 11 0 0 1 3.5 2.5" />
+      <line x1="2" y1="2" x2="22" y2="22" />
+      <circle cx="12" cy="19.5" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  ),
+  alert: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.72 3h16.92a2 2 0 0 0 1.72-3L13.7 3.86a2 2 0 0 0-3.4 0Z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  ),
+  search: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+  ),
+};
+
+const filters = [
+  { id: "all", label: "All" },
+  { id: "alerts", label: "Alerts" },
+  { id: "offline", label: "Offline" },
+  { id: "low-battery", label: "Low Battery" },
+];
+
 export default function Dashboard() {
   const router = useRouter();
   const { user, loading } = useAuth();
   const { poles, error } = usePoles(!!user);
   const [now, setNow] = useState(() => Date.now());
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [showCount, setShowCount] = useState(10);
 
   useEffect(() => {
     if (!loading && !user) router.replace("/");
@@ -33,6 +82,33 @@ export default function Dashboard() {
     return () => clearInterval(t);
   }, []);
 
+  const enriched = useMemo(
+    () =>
+      poles.map((p) => {
+        const online = isOnline(p.updatedAt, now);
+        const hasFault = p.x_status !== "OK" || p.y_status !== "OK";
+        return {
+          ...p,
+          online,
+          alert: !online || hasFault,
+          lowBattery: typeof p.voltage_v === "number" && p.voltage_v < LOW_BATTERY_V,
+        };
+      }),
+    [poles, now]
+  );
+
+  const filtered = useMemo(() => {
+    return enriched
+      .filter((p) => !search || p.id.toLowerCase().includes(search.toLowerCase()))
+      .filter((p) => {
+        if (filter === "alerts") return p.alert;
+        if (filter === "offline") return !p.online;
+        if (filter === "low-battery") return p.lowBattery;
+        return true;
+      })
+      .slice(0, showCount);
+  }, [enriched, search, filter, showCount]);
+
   if (loading || !user) {
     return (
       <main className="center">
@@ -42,102 +118,130 @@ export default function Dashboard() {
     );
   }
 
-  const onlineCount = poles.filter((p) => isOnline(p.updatedAt, now)).length;
-  const faultCount = poles.filter((p) => p.x_status !== "OK" || p.y_status !== "OK").length;
+  const onlineCount = enriched.filter((p) => p.online).length;
+  const alertCount = enriched.filter((p) => p.alert).length;
 
   return (
-    <AppShell title="Dashboard">
-      <div className="page-header">
-        <h1>System Overview</h1>
-        <p>Overview of active device telemetry, connectivity, and hardware fault status.</p>
-      </div>
-
+    <AppShell>
       {error && <p className="error" role="alert">{error}</p>}
 
       {poles.length === 0 ? (
         <div className="stat-tile" style={{ padding: "2rem" }}>
           <p className="muted" style={{ margin: 0 }}>
-            No poles registered yet. Once a device sends its first reading, telemetry will appear here.
+            No devices registered yet. Once a device sends its first reading, it will appear here.
           </p>
         </div>
       ) : (
         <>
           <div className="stat-row">
-            <div className="stat-tile">
-              <div className="stat-tile-label">Total Poles</div>
-              <div className="stat-tile-value">{poles.length}</div>
-            </div>
-            <div className="stat-tile">
-              <div className="stat-tile-label">Online</div>
-              <div className="stat-tile-value" style={{ color: "var(--status-good-dot)" }}>
-                {onlineCount}
+            <div className="stat-tile stat-tile-total">
+              <div className="stat-tile-head">
+                <span className="stat-tile-label">Total Devices</span>
+                <span className="stat-tile-icon">{icons.radio}</span>
               </div>
+              <div className="stat-tile-value">{enriched.length}</div>
             </div>
-            <div className="stat-tile">
-              <div className="stat-tile-label">Offline</div>
-              <div className="stat-tile-value" style={{ color: "var(--status-warn-dot)" }}>
-                {poles.length - onlineCount}
+            <div className="stat-tile stat-tile-online">
+              <div className="stat-tile-head">
+                <span className="stat-tile-label">Online</span>
+                <span className="stat-tile-icon">{icons.wifi}</span>
               </div>
+              <div className="stat-tile-value">{onlineCount}</div>
             </div>
-            <div className="stat-tile">
-              <div className="stat-tile-label">Active Faults</div>
-              <div className="stat-tile-value" style={{ color: "var(--status-crit-dot)" }}>
-                {faultCount}
+            <div className="stat-tile stat-tile-offline">
+              <div className="stat-tile-head">
+                <span className="stat-tile-label">Offline</span>
+                <span className="stat-tile-icon">{icons.wifiOff}</span>
               </div>
+              <div className="stat-tile-value">{enriched.length - onlineCount}</div>
+            </div>
+            <div className="stat-tile stat-tile-alerts">
+              <div className="stat-tile-head">
+                <span className="stat-tile-label">Alerts</span>
+                <span className="stat-tile-icon">{icons.alert}</span>
+              </div>
+              <div className="stat-tile-value">{alertCount}</div>
             </div>
           </div>
 
-          <div className="history" style={{ marginTop: "1rem" }}>
+          <div className="filter-bar">
+            <div className="search-input">
+              {icons.search}
+              <input
+                type="text"
+                placeholder="Search by Pole ID..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <div className="filter-pills">
+              {filters.map((f) => (
+                <button
+                  key={f.id}
+                  className={`filter-pill ${filter === f.id ? "active" : ""}`}
+                  onClick={() => setFilter(f.id)}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            <label className="show-count">
+              Show
+              <select value={showCount} onChange={(e) => setShowCount(Number(e.target.value))}>
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+              devices
+            </label>
+          </div>
+
+          <div className="history">
             <div className="history-head">
-              <h2>Pole Devices Status</h2>
+              <h2>Devices</h2>
             </div>
             <div className="scroll">
               <table>
                 <thead>
                   <tr>
                     <th>Pole ID</th>
-                    <th>Connectivity</th>
-                    <th>X Axis</th>
-                    <th>Y Axis</th>
-                    <th>Last Update</th>
+                    <th>Status</th>
+                    <th>Alert</th>
+                    <th>Battery</th>
+                    <th>Last seen</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {poles.map((p) => {
-                    const updatedMs = p.updatedAt;
-                    const online = isOnline(updatedMs, now);
-                    return (
-                      <tr key={p.id}>
-                        <td style={{ fontWeight: 700 }}>{p.id}</td>
-                        <td>
-                          <StatusDot tone={online ? "good" : "warning"} pulse={online}>
-                            {online ? "Online" : "Offline"}
-                          </StatusDot>
-                        </td>
-                        <td>
-                          <StatusDot tone={p.x_status === "OK" ? "good" : "critical"}>
-                            {p.x_status}
-                          </StatusDot>
-                        </td>
-                        <td>
-                          <StatusDot tone={p.y_status === "OK" ? "good" : "critical"}>
-                            {p.y_status}
-                          </StatusDot>
-                        </td>
-                        <td>{updatedMs ? ago(now - updatedMs) : "--"}</td>
-                        <td>
-                          <Link href={`/history?pole=${encodeURIComponent(p.id)}`} className="btn-card-action">
-                            <span>History</span>
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                              <line x1="5" y1="12" x2="19" y2="12" />
-                              <polyline points="12 5 19 12 12 19" />
-                            </svg>
+                  {filtered.map((p) => (
+                    <tr key={p.id}>
+                      <td>
+                        <div style={{ fontWeight: 700 }}>{p.id}</div>
+                        {p.mac && <div className="muted" style={{ fontSize: "0.8rem", fontFamily: "monospace" }}>{p.mac}</div>}
+                      </td>
+                      <td>
+                        <StatusDot tone={p.online ? "good" : "warning"} pulse={p.online}>
+                          {p.online ? "Online" : "Offline"}
+                        </StatusDot>
+                      </td>
+                      <td>
+                        {p.alert ? <StatusDot tone="warning">Alert</StatusDot> : <span className="muted">--</span>}
+                      </td>
+                      <td>{typeof p.voltage_v === "number" ? `${p.voltage_v.toFixed(1)} V` : "--"}</td>
+                      <td>{p.updatedAt ? ago(now - p.updatedAt) : "--"}</td>
+                      <td>
+                        <div className="table-actions">
+                          <Link href={`/live?pole=${encodeURIComponent(p.id)}`} className="btn-table-action live">
+                            Live
                           </Link>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                          <Link href={`/history?pole=${encodeURIComponent(p.id)}`} className="btn-table-action history">
+                            History
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

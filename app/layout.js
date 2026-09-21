@@ -5,8 +5,8 @@ import { AuthProvider } from "@/lib/AuthContext";
 const archivo = Archivo({ subsets: ["latin"], variable: "--font" });
 
 export const metadata = {
-  title: "Sensor dashboard",
-  description: "Live readings from an ESP32 over GSM",
+  title: "ATD dashboard",
+  description: "Live readings from an DEVICE over GSM",
 };
 
 export default function RootLayout({ children }) {

@@ -1,15 +1,16 @@
 "use client";
-import Sidebar from "./Sidebar";
 import AppHeader from "./AppHeader";
+import { useAuth } from "@/lib/AuthContext";
+import { useSyncRtdbToFirestore } from "@/lib/syncRtdbToFirestore";
 
-export default function AppShell({ title, children }) {
+export default function AppShell({ children }) {
+  const { user } = useAuth();
+  useSyncRtdbToFirestore(!!user);
+
   return (
     <div className="app-shell">
-      <Sidebar />
-      <div className="app-main">
-        <AppHeader title={title} />
-        <main className="page">{children}</main>
-      </div>
+      <AppHeader />
+      <main className="page">{children}</main>
     </div>
   );
 }

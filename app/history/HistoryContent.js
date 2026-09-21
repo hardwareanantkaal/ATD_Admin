@@ -1,29 +1,22 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { collection, doc, getDocs, limit, onSnapshot, orderBy, query, updateDoc, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/AuthContext";
 import { usePoles } from "@/lib/usePoles";
+import { hasTempFault } from "@/lib/deviceStatus";
 import AppShell from "@/components/AppShell";
 import StatusDot from "@/components/StatusDot";
 import Trend from "@/components/Trend";
 
-function ago(ms) {
-  const s = Math.max(0, Math.round(ms / 1000));
-  if (s < 60) return `${s}s ago`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
-
-const metrics = [
-  { key: "x_m", label: "X displacement", unit: " m", color: "var(--metric-x)" },
-  { key: "y_m", label: "Y displacement", unit: " m", color: "var(--metric-y)" },
-  { key: "temp_c", label: "Temperature", unit: "°C", color: "var(--metric-temp)" },
-];
+const backIcon = (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="19" y1="12" x2="5" y2="12" />
+    <polyline points="12 19 5 12 12 5" />
+  </svg>
+);
 
 export default function HistoryContent() {
   const router = useRouter();
@@ -32,7 +25,6 @@ export default function HistoryContent() {
   const { poles, error: poleError } = usePoles(!!user);
   const [selectedPoleId, setSelectedPoleId] = useState(null);
   const [history, setHistory] = useState([]);
-  const [now, setNow] = useState(() => Date.now());
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -55,11 +47,6 @@ export default function HistoryContent() {
       setHistory(rows.slice(-50));
     });
   }, [effectiveSelectedId]);
-
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
 
   async function clearHistory() {
     if (!confirm("Delete all stored readings for this pole? This cannot be undone.")) return;
@@ -86,25 +73,33 @@ export default function HistoryContent() {
   }
 
   const pole = poles.find((p) => p.id === effectiveSelectedId) ?? null;
-  const updatedMs = pole?.updatedAt;
+  const hasVoltage = history.some((r) => typeof r.voltage_v === "number");
 
   return (
-    <AppShell title="History">
-      <div className="page-header">
-        <h1>Telemetry History</h1>
-        <p>Historical trends and logged sensor batches for connected devices.</p>
-      </div>
-
+    <AppShell>
       {(error || poleError) && <p className="error" role="alert">{error || poleError}</p>}
 
       {poles.length === 0 ? (
-        <div className="stat-tile" style={{ padding: "2rem" }}>
-          <p className="muted" style={{ margin: 0 }}>
-            No poles registered yet. Telemetry history will appear here once readings are recorded.
-          </p>
-        </div>
+        <p className="muted">No devices registered yet. Telemetry history will appear here once readings are recorded.</p>
       ) : (
         <>
+          <div className="detail-toolbar">
+            <div className="detail-toolbar-title">
+              <Link href="/dashboard" className="btn-icon" aria-label="Back to dashboard">
+                {backIcon}
+              </Link>
+              <div>
+                <h1>{effectiveSelectedId} — History</h1>
+                {pole?.mac && <p className="detail-mac">{pole.mac}</p>}
+              </div>
+            </div>
+            <div className="detail-toolbar-actions">
+              <button className="btn-secondary" onClick={() => location.reload()}>
+                Refresh
+              </button>
+            </div>
+          </div>
+
           {poles.length > 1 && (
             <div className="pole-tabs">
               {poles.map((p) => (
@@ -119,43 +114,73 @@ export default function HistoryContent() {
             </div>
           )}
 
-          <div className="stat-tile" style={{ marginBottom: "1.5rem" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
-              <div>
-                <h3 style={{ margin: "0 0 0.25rem", fontSize: "1.1rem" }}>{effectiveSelectedId}</h3>
-                <p className="stamp" style={{ margin: 0 }}>
-                  {updatedMs ? `Last reading received ${ago(now - updatedMs)}` : "No readings yet."}
-                  {typeof pole?.voltage_v === "number" && ` · Battery ${pole.voltage_v.toFixed(1)} V`}
-                </p>
-              </div>
-
-              <div className="status-row">
-                <StatusDot tone={pole?.x_status === "OK" ? "good" : "critical"}>
-                  X axis {pole?.x_status ?? "--"}
-                </StatusDot>
-                <StatusDot tone={pole?.y_status === "OK" ? "good" : "critical"}>
-                  Y axis {pole?.y_status ?? "--"}
-                </StatusDot>
-              </div>
+          <div className="chart-grid">
+            <div className="chart-card">
+              <h3>X / Y Position (meters)</h3>
+              <Trend
+                series={[
+                  { values: history.map((r) => Number(r.x_m)), color: "var(--metric-x)", label: "X (m)" },
+                  { values: history.map((r) => Number(r.y_m)), color: "var(--metric-y)", label: "Y (m)" },
+                ]}
+              />
+            </div>
+            <div className="chart-card">
+              <h3>Temperature (°C)</h3>
+              {/* -999 readings are the firmware's sensor-fault flag; they'd wreck the scale. */}
+              <Trend
+                values={history.map((r) => r.temp_c).filter((t) => !hasTempFault(t)).map(Number)}
+                color="var(--metric-temp)"
+                label="Temp (°C)"
+                unit="°C"
+              />
             </div>
           </div>
 
-          {metrics.map((m) => (
-            <section key={m.key} className="metric">
-              <div className="metric-value">
-                <span className="metric-label">{m.label}</span>
-                <span className="numeral" style={{ color: m.color }}>
-                  {pole ? Number(pole[m.key]).toFixed(m.key === "temp_c" ? 1 : 3) : "--"}
-                  <small>{m.unit}</small>
-                </span>
-              </div>
-              <Trend values={history.map((r) => Number(r[m.key]))} color={m.color} label={m.label} unit={m.unit} />
-            </section>
-          ))}
+          <div className="chart-grid">
+            <div className="chart-card">
+              <h3>Voltage (V)</h3>
+              {hasVoltage ? (
+                <Trend values={history.map((r) => Number(r.voltage_v))} color="var(--metric-battery)" label="Voltage (V)" unit=" V" />
+              ) : (
+                <p className="trend-empty">No data</p>
+              )}
+            </div>
+            <div className="chart-card">
+              <h3>Status Timeline</h3>
+              {history.length > 0 ? (
+                <>
+                  <div className="status-timeline">
+                    {history.map((r) => {
+                      const fault = r.x_status !== "OK" || r.y_status !== "OK";
+                      return (
+                        <span
+                          key={r._key}
+                          className={`status-timeline-seg ${fault ? "fault" : "ok"}`}
+                          title={`${r.ts ? new Date(r.ts).toLocaleString() : ""} — X:${r.x_status} Y:${r.y_status}`}
+                        />
+                      );
+                    })}
+                  </div>
+                  <div className="trend-legend">
+                    <span className="trend-legend-item">
+                      <span className="trend-legend-swatch" style={{ background: "var(--status-good-dot)" }} />
+                      OK
+                    </span>
+                    <span className="trend-legend-item">
+                      <span className="trend-legend-swatch" style={{ background: "var(--status-warn-dot)" }} />
+                      Fault/Down
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <p className="trend-empty">No data</p>
+              )}
+            </div>
+          </div>
 
           <section className="history">
             <div className="history-head">
-              <h2>Stored Readings Log</h2>
+              <h2>Raw Data ({history.length} records)</h2>
               {role === "admin" && history.length > 0 && (
                 <button className="danger" onClick={clearHistory}>
                   Clear history
@@ -169,27 +194,25 @@ export default function HistoryContent() {
                 <table>
                   <thead>
                     <tr>
-                      <th>Timestamp</th>
-                      <th>X Displacement (m)</th>
-                      <th>Y Displacement (m)</th>
+                      <th>Time</th>
+                      <th>X (m)</th>
+                      <th>Y (m)</th>
                       <th>Temp (°C)</th>
-                      <th>Battery (V)</th>
-                      <th>Status (X / Y)</th>
+                      <th>V (V)</th>
+                      <th>X status</th>
+                      <th>Y status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {[...history].reverse().slice(0, 25).map((r) => (
                       <tr key={r._key}>
                         <td>{r.ts ? new Date(r.ts).toLocaleString() : "--"}</td>
-                        <td style={{ color: "var(--metric-x)", fontWeight: 600 }}>{Number(r.x_m).toFixed(3)}</td>
-                        <td style={{ color: "var(--metric-y)", fontWeight: 600 }}>{Number(r.y_m).toFixed(3)}</td>
-                        <td style={{ color: "var(--metric-temp)", fontWeight: 600 }}>{Number(r.temp_c).toFixed(1)}</td>
-                        <td>{Number(r.voltage_v).toFixed(1)}</td>
-                        <td>
-                          <StatusDot tone={r.x_status === "OK" && r.y_status === "OK" ? "good" : "critical"}>
-                            {r.x_status} / {r.y_status}
-                          </StatusDot>
-                        </td>
+                        <td>{Number(r.x_m).toFixed(3)}</td>
+                        <td>{Number(r.y_m).toFixed(3)}</td>
+                        <td>{hasTempFault(r.temp_c) ? "—" : Number(r.temp_c).toFixed(1)}</td>
+                        <td>{typeof r.voltage_v === "number" ? r.voltage_v.toFixed(1) : "--"}</td>
+                        <td><StatusDot tone={r.x_status === "OK" ? "good" : "critical"}>{r.x_status}</StatusDot></td>
+                        <td><StatusDot tone={r.y_status === "OK" ? "good" : "critical"}>{r.y_status}</StatusDot></td>
                       </tr>
                     ))}
                   </tbody>

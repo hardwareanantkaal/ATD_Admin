@@ -45,7 +45,7 @@ export default function Admin() {
   }
 
   return (
-    <AppShell title="Manage users">
+    <AppShell>
       <div className="page-header">
         <h1>User Management</h1>
         <p>Assign access roles for portal users and ESP32 device accounts.</p>
