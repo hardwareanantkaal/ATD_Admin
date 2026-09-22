@@ -197,7 +197,7 @@ export default function Dashboard() {
             </label>
           </div>
 
-          <div className="history">
+          <div className="readings-section">
             <div className="history-head">
               <h2>Devices</h2>
             </div>
@@ -232,10 +232,10 @@ export default function Dashboard() {
                       <td>{p.updatedAt ? ago(now - p.updatedAt) : "--"}</td>
                       <td>
                         <div className="table-actions">
-                          <Link href={`/live?pole=${encodeURIComponent(p.id)}`} className="btn-table-action live">
+                          <Link href={`/live?pole=${encodeURIComponent(p.id)}`} className="btn-table-action btn-live">
                             Live
                           </Link>
-                          <Link href={`/history?pole=${encodeURIComponent(p.id)}`} className="btn-table-action history">
+                          <Link href={`/history?pole=${encodeURIComponent(p.id)}`} className="btn-table-action btn-history">
                             History
                           </Link>
                         </div>

@@ -56,6 +56,18 @@ export default function Home() {
     }
   }
 
+  // Firebase restores the session asynchronously - without this the login form
+  // flashes for a second before an already-signed-in user gets redirected.
+  if (loading || user) {
+    return (
+      <main className="center">
+        <div className="brand-icon">ATD</div>
+        <div className="spinner" />
+        <span>Loading ATD Monitor...</span>
+      </main>
+    );
+  }
+
   return (
     <main className="login">
       <div className="login-card">

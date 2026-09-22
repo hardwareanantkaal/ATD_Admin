@@ -633,6 +633,48 @@ button {
   font-weight: 600;
 }
 
+.gps-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.gps-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.gps-url-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.gps-url-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.gps-latlng {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.gps-form-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
 /* Charts (History) */
 .chart-grid {
   display: grid;
@@ -773,37 +815,43 @@ button {
   gap: 0.5rem;
 }
 
+/* Self-sufficient base: reads as a button even before a variant is applied. */
 .btn-table-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.3rem 0.75rem;
+  padding: 0.35rem 0.85rem;
   border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text-main);
   font-size: 0.8rem;
   font-weight: 600;
   line-height: 1.3;
   white-space: nowrap;
 }
 
-/* Both variants carry a border so their box heights match exactly. */
-.btn-table-action.live {
+/* Namespaced modifiers - a bare `.history` would collide with the section rule
+   below and shift the button down by its margin. Both carry a border so their
+   box heights match exactly. */
+.btn-table-action.btn-live {
   background: var(--primary);
   border: 1px solid var(--primary);
   color: #fff;
 }
 
-.btn-table-action.live:hover {
+.btn-table-action.btn-live:hover {
   background: var(--primary-hover);
   border-color: var(--primary-hover);
 }
 
-.btn-table-action.history {
+.btn-table-action.btn-history {
   background: var(--bg-panel);
   border: 1px solid var(--border);
   color: var(--text-main);
 }
 
-.btn-table-action.history:hover {
+.btn-table-action.btn-history:hover {
   background: var(--bg-main);
   border-color: #cbd5e1;
 }
@@ -921,7 +969,9 @@ button {
 }
 
 /* Tables */
-.history {
+/* Named specifically so it can't collide with element modifier classes
+   (a bare `.history` also matched the History button and shifted it down). */
+.readings-section {
   margin-top: 2rem;
 }
 
@@ -981,12 +1031,82 @@ tr:hover td {
   background: var(--bg-main);
 }
 
+@media (max-width: 1024px) {
+  .page {
+    padding: 1.5rem 1.25rem 3rem;
+  }
+  .bar {
+    padding: 0.85rem 1.25rem;
+  }
+  .chart-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 768px) {
   .page {
     padding: 1.25rem 1rem 3rem;
   }
   .bar {
-    padding: 0.85rem 1rem;
+    padding: 0.75rem 1rem;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+  .bar nav {
+    gap: 0.6rem;
+    flex-wrap: wrap;
+  }
+  /* The email is the first thing to go - the avatar and role pill still identify the session. */
+  .user-badge span:not(.role-pill) {
+    display: none;
+  }
+  .stat-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.85rem;
+  }
+  .stat-tile {
+    padding: 1rem;
+  }
+  .stat-tile-value {
+    font-size: 1.75rem;
+  }
+  .filter-bar {
+    gap: 0.75rem;
+  }
+  .search-input {
+    min-width: 100%;
+  }
+  .detail-toolbar-actions {
+    width: 100%;
+  }
+  .detail-toolbar-actions .btn-secondary {
+    flex: 1;
+    justify-content: center;
+  }
+  .pole-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .stat-row,
+  .pole-metrics,
+  .pole-metrics.live-metrics,
+  .gps-latlng {
+    grid-template-columns: 1fr;
+  }
+  .filter-pills {
+    width: 100%;
+  }
+  .filter-pill {
+    flex: 1;
+    text-align: center;
+  }
+  .gps-url-row {
+    flex-direction: column;
+  }
+  .detail-toolbar-title h1 {
+    font-size: 1.15rem;
   }
 }
 

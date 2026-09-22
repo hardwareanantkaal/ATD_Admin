@@ -178,7 +178,7 @@ export default function HistoryContent() {
             </div>
           </div>
 
-          <section className="history">
+          <section className="readings-section">
             <div className="history-head">
               <h2>Raw Data ({history.length} records)</h2>
               {role === "admin" && history.length > 0 && (

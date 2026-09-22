@@ -87,6 +87,11 @@ export default function LiveContent() {
   const { poles, error } = usePoles(!!user);
   const [now, setNow] = useState(() => Date.now());
   const [deviceDoc, setDeviceDoc] = useState(null);
+  const [editingGps, setEditingGps] = useState(false);
+  const [mapsUrl, setMapsUrl] = useState("");
+  const [lat, setLat] = useState("");
+  const [lng, setLng] = useState("");
+  const [gpsError, setGpsError] = useState("");
 
   useEffect(() => {
     if (!loading && !user) router.replace("/");
@@ -105,19 +110,38 @@ export default function LiveContent() {
     return onSnapshot(doc(db, "device", effectiveId), (snap) => setDeviceDoc(snap.exists() ? snap.data() : null));
   }, [effectiveId]);
 
-  async function setLocation() {
-    const input = prompt("Paste a Google Maps link, or enter coordinates as \"lat, lng\":");
-    if (input === null) return;
+  function openGpsEditor(existing) {
+    setLat(existing ? String(existing.lat) : "");
+    setLng(existing ? String(existing.lng) : "");
+    setMapsUrl("");
+    setGpsError("");
+    setEditingGps(true);
+  }
 
-    const coords = parseCoordinates(input);
+  function fetchFromUrl() {
+    const coords = parseCoordinates(mapsUrl);
     if (!coords) {
-      alert("Could not read coordinates. Paste a Google Maps link, or enter them as \"19.0760, 72.8777\".");
+      setGpsError("Could not read coordinates from that link. Use the full URL from the address bar - shortened maps.app.goo.gl links won't work.");
+      return;
+    }
+    setLat(String(coords.lat));
+    setLng(String(coords.lng));
+    setGpsError("");
+  }
+
+  async function saveLocation(e) {
+    e.preventDefault();
+    const coords = toCoords(lat, lng);
+    if (!coords) {
+      setGpsError("Enter a valid latitude (-90 to 90) and longitude (-180 to 180).");
       return;
     }
     try {
       await setDoc(doc(db, "device", effectiveId), { gps: coords }, { merge: true });
+      setEditingGps(false);
+      setGpsError("");
     } catch {
-      alert("Could not save the location. Check your permissions.");
+      setGpsError("Could not save the location. Check your permissions.");
     }
   }
 
@@ -234,10 +258,13 @@ export default function LiveContent() {
             {icons.pin}
             GPS Location
           </span>
-          <button className="btn-secondary" onClick={setLocation}>
-            Set Location
-          </button>
+          {!editingGps && (
+            <button className="btn-secondary" onClick={() => openGpsEditor(gps)}>
+              {gps ? "Edit Location" : "Set Location"}
+            </button>
+          )}
         </div>
+
         {gps ? (
           <div className="gps-coords">
             <span>{gps.lat.toFixed(5)}, {gps.lng.toFixed(5)}</span>
@@ -245,15 +272,56 @@ export default function LiveContent() {
               href={`https://www.google.com/maps?q=${gps.lat},${gps.lng}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="btn-table-action live"
+              className="btn-table-action btn-live"
             >
               Open in Google Maps
             </a>
           </div>
         ) : (
-          <p className="muted" style={{ margin: 0 }}>
-            No GPS data available — click &quot;Set Location&quot; to add coordinates manually
-          </p>
+          !editingGps && (
+            <p className="muted" style={{ margin: 0 }}>
+              No GPS data available — click &quot;Set Location&quot; to add coordinates manually
+            </p>
+          )
+        )}
+
+        {editingGps && (
+          <form className="gps-form" onSubmit={saveLocation}>
+            <label className="gps-field">
+              Google Maps link
+              <div className="gps-url-row">
+                <input
+                  type="text"
+                  value={mapsUrl}
+                  onChange={(e) => setMapsUrl(e.target.value)}
+                  placeholder="https://www.google.com/maps/@19.0760,72.8777,17z"
+                />
+                <button type="button" className="btn-secondary" onClick={fetchFromUrl}>
+                  Fetch
+                </button>
+              </div>
+            </label>
+
+            <div className="gps-latlng">
+              <label className="gps-field">
+                Latitude
+                <input type="text" inputMode="decimal" value={lat} onChange={(e) => setLat(e.target.value)} placeholder="19.0760" />
+              </label>
+              <label className="gps-field">
+                Longitude
+                <input type="text" inputMode="decimal" value={lng} onChange={(e) => setLng(e.target.value)} placeholder="72.8777" />
+              </label>
+            </div>
+
+            {gpsError && <p className="error" role="alert">{gpsError}</p>}
+
+            <div className="gps-form-actions">
+              <button type="submit" className="primary">Save location</button>
+              <button type="button" className="btn-secondary" onClick={() => setEditingGps(false)}>
+                Cancel
+              </button>
+            </div>
+          </form>
         )}
       </div>
     </AppShell>
