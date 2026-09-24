@@ -1,4 +1,11 @@
-export default function Trend({ values, color, label, unit, series }) {
+// Short axis label: time of day, plus the date when the window spans days.
+function axisLabel(ms, spansDays) {
+  const d = new Date(ms);
+  const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return spansDays ? `${d.toLocaleDateString([], { day: "2-digit", month: "short" })} ${time}` : time;
+}
+
+export default function Trend({ values, color, label, unit, series, timestamps }) {
   const allSeries = series ?? [{ values, color, label }];
   if (!allSeries.some((s) => s.values.length >= 2)) {
     return (
@@ -32,6 +39,19 @@ export default function Trend({ values, color, label, unit, series }) {
           <path key={s.label} d={pathFor(s.values)} fill="none" stroke={s.color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
         ))}
       </svg>
+
+      {timestamps && timestamps.length >= 2 && (
+        <div className="trend-axis">
+          {(() => {
+            const first = timestamps[0];
+            const last = timestamps[timestamps.length - 1];
+            const mid = timestamps[Math.floor((timestamps.length - 1) / 2)];
+            const spansDays = new Date(first).toDateString() !== new Date(last).toDateString();
+            return [first, mid, last].map((t, i) => <span key={i}>{axisLabel(t, spansDays)}</span>);
+          })()}
+        </div>
+      )}
+
       {series ? (
         <div className="trend-legend">
           {allSeries.map((s) => (

@@ -59,6 +59,18 @@ const icons = {
       <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
     </svg>
   ),
+  ruler: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 16.5 16.5 2 22 7.5 7.5 22Z" />
+      <path d="M6 12.5 8 14.5M9.5 9 11.5 11M13 5.5 15 7.5" />
+    </svg>
+  ),
+  sun: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+    </svg>
+  ),
   pin: (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0Z" />
@@ -210,8 +222,9 @@ export default function LiveContent() {
             <span className="pole-metric-label">X Position</span>
             <span className="pole-metric-icon">{icons.radio}</span>
           </div>
+          {/* Payload is in metres (iot.ino divides the sensor's mm by 1000). */}
           <span className="pole-metric-value" style={{ color: "var(--metric-x)" }}>
-            {Number(pole.x_m).toFixed(3)} m
+            {Math.round(Number(pole.x_m) * 1000)} mm
           </span>
           <StatusDot tone={pole.x_status === "OK" ? "good" : "critical"}>{pole.x_status}</StatusDot>
         </div>
@@ -221,9 +234,18 @@ export default function LiveContent() {
             <span className="pole-metric-icon">{icons.radio}</span>
           </div>
           <span className="pole-metric-value" style={{ color: "var(--metric-y)" }}>
-            {Number(pole.y_m).toFixed(3)} m
+            {Math.round(Number(pole.y_m) * 1000)} mm
           </span>
           <StatusDot tone={pole.y_status === "OK" ? "good" : "critical"}>{pole.y_status}</StatusDot>
+        </div>
+        <div className="pole-metric">
+          <div className="pole-metric-head">
+            <span className="pole-metric-label">HTL</span>
+            <span className="pole-metric-icon">{icons.ruler}</span>
+          </div>
+          <span className="pole-metric-value" style={{ color: "var(--metric-htl)" }}>
+            {typeof pole.htl === "number" ? `${pole.htl.toFixed(3)} m` : "—"}
+          </span>
         </div>
         <div className="pole-metric">
           <div className="pole-metric-head">
@@ -243,11 +265,20 @@ export default function LiveContent() {
         </div>
         <div className="pole-metric">
           <div className="pole-metric-head">
-            <span className="pole-metric-label">Voltage</span>
+            <span className="pole-metric-label">Battery</span>
             <span className="pole-metric-icon">{icons.bolt}</span>
           </div>
-          <span className="pole-metric-value">
+          <span className="pole-metric-value" style={{ color: "var(--metric-battery)" }}>
             {typeof pole.voltage_v === "number" ? `${pole.voltage_v.toFixed(1)} V` : "—"}
+          </span>
+        </div>
+        <div className="pole-metric">
+          <div className="pole-metric-head">
+            <span className="pole-metric-label">Solar</span>
+            <span className="pole-metric-icon">{icons.sun}</span>
+          </div>
+          <span className="pole-metric-value" style={{ color: "var(--metric-solar)" }}>
+            {typeof pole.solar_v === "number" ? `${pole.solar_v.toFixed(1)} V` : "—"}
           </span>
         </div>
       </div>

@@ -209,6 +209,7 @@ export default function Dashboard() {
                     <th>Status</th>
                     <th>Alert</th>
                     <th>Battery</th>
+                    <th>Solar</th>
                     <th>Last seen</th>
                     <th>Actions</th>
                   </tr>
@@ -229,6 +230,7 @@ export default function Dashboard() {
                         {p.alert ? <StatusDot tone="warning">Alert</StatusDot> : <span className="muted">--</span>}
                       </td>
                       <td>{typeof p.voltage_v === "number" ? `${p.voltage_v.toFixed(1)} V` : "--"}</td>
+                      <td>{typeof p.solar_v === "number" ? `${p.solar_v.toFixed(1)} V` : "--"}</td>
                       <td>{p.updatedAt ? ago(now - p.updatedAt) : "--"}</td>
                       <td>
                         <div className="table-actions">

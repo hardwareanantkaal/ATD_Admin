@@ -12,6 +12,12 @@ function validate(body) {
   for (const key of ["x_status", "y_status"]) {
     if (typeof body[key] !== "string" || !body[key]) return `${key} must be a non-empty string.`;
   }
+  // Optional until the firmware ships them - only type-checked when present.
+  for (const key of ["htl", "solar_v"]) {
+    if (body[key] !== undefined && (typeof body[key] !== "number" || !Number.isFinite(body[key]))) {
+      return `${key} must be a number when provided.`;
+    }
+  }
   return null;
 }
 
@@ -30,8 +36,11 @@ export async function POST(request) {
   const error = validate(body);
   if (error) return Response.json({ error }, { status: 400 });
 
-  const { pole_id, x_m, y_m, temp_c, voltage_v, x_status, y_status } = body;
+  const { pole_id, x_m, y_m, temp_c, voltage_v, x_status, y_status, htl, solar_v } = body;
   const fields = { x_m, y_m, temp_c, voltage_v, x_status, y_status };
+  // Firestore rejects undefined, so only set these once the device sends them.
+  if (typeof htl === "number") fields.htl = htl;
+  if (typeof solar_v === "number") fields.solar_v = solar_v;
   // FieldValue.serverTimestamp() can't be used inside an array element, so the
   // API route's own clock stands in for it (this runs server-side, not on the device).
   const reading = { ...fields, ts: Date.now() };

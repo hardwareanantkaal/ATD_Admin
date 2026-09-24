@@ -14,8 +14,10 @@
   
   --metric-x: #ea580c;
   --metric-y: #059669;
+  --metric-htl: #7c3aed;
   --metric-temp: #2563eb;
   --metric-battery: #475569;
+  --metric-solar: #d97706;
   
   --danger: #dc2626;
   --danger-bg: #fef2f2;
@@ -232,6 +234,11 @@ button {
 .btn-secondary:hover {
   background: var(--bg-main);
   border-color: #cbd5e1;
+}
+
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .link {
@@ -716,6 +723,17 @@ button {
 
 .status-timeline-seg.fault {
   background: var(--status-warn-dot);
+}
+
+.trend-axis {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-light);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  margin: 0.35rem 0 0.6rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--border-subtle);
 }
 
 .trend-legend {
