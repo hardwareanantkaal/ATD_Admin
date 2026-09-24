@@ -7,6 +7,8 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/AuthContext";
 import { usePoles } from "@/lib/usePoles";
 import { hasTempFault } from "@/lib/deviceStatus";
+import { normalizeReading } from "@/lib/normalizeReading";
+import { dateTime24 } from "@/lib/formatTime";
 import AppShell from "@/components/AppShell";
 import StatusDot from "@/components/StatusDot";
 import Trend from "@/components/Trend";
@@ -69,7 +71,9 @@ export default function HistoryContent() {
     const q = query(collection(db, "device", effectiveSelectedId, "sensor_data"), orderBy("batch", "desc"), limit(range.batches));
     return onSnapshot(q, (snap) => {
       const batches = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => a.batch - b.batch);
-      const rows = batches.flatMap((b) => (b.readings ?? []).map((r, i) => ({ ...r, _key: `${b.id}-${i}` })));
+      const rows = batches.flatMap((b) =>
+        (b.readings ?? []).map((r, i) => ({ ...normalizeReading(r), _key: `${b.id}-${i}` }))
+      );
       setHistory(rows);
     });
   }, [effectiveSelectedId, range.batches]);
@@ -86,9 +90,9 @@ export default function HistoryContent() {
     const header = ["Time", "X (mm)", "Y (mm)", "HTL (m)", "Temp (C)", "Battery (V)", "Solar (V)", "X status", "Y status"];
     const rows = visible.map((r) => [
       r.ts ? new Date(r.ts).toISOString() : "",
-      Math.round(Number(r.x_m) * 1000),
-      Math.round(Number(r.y_m) * 1000),
-      typeof r.htl === "number" ? r.htl.toFixed(3) : "",
+      typeof r.x_mm === "number" ? Math.round(r.x_mm) : "",
+      typeof r.y_mm === "number" ? Math.round(r.y_mm) : "",
+      typeof r.htl_mm === "number" ? (r.htl_mm / 1000).toFixed(3) : "",
       hasTempFault(r.temp_c) ? "" : Number(r.temp_c).toFixed(1),
       typeof r.voltage_v === "number" ? r.voltage_v.toFixed(1) : "",
       typeof r.solar_v === "number" ? r.solar_v.toFixed(1) : "",
@@ -132,7 +136,7 @@ export default function HistoryContent() {
   const pole = poles.find((p) => p.id === effectiveSelectedId) ?? null;
   const hasVoltage = visible.some((r) => typeof r.voltage_v === "number");
   const hasSolar = visible.some((r) => typeof r.solar_v === "number");
-  const hasHtl = visible.some((r) => typeof r.htl === "number");
+  const hasHtl = visible.some((r) => typeof r.htl_mm === "number");
   const times = visible.map((r) => r.ts).filter((t) => typeof t === "number");
 
   return (
@@ -201,8 +205,8 @@ export default function HistoryContent() {
               <Trend
                 timestamps={times}
                 series={[
-                  { values: visible.map((r) => Number(r.x_m) * 1000), color: "var(--metric-x)", label: "X (mm)" },
-                  { values: visible.map((r) => Number(r.y_m) * 1000), color: "var(--metric-y)", label: "Y (mm)" },
+                  { values: visible.map((r) => Number(r.x_mm)), color: "var(--metric-x)", label: "X (mm)" },
+                  { values: visible.map((r) => Number(r.y_mm)), color: "var(--metric-y)", label: "Y (mm)" },
                 ]}
               />
             </div>
@@ -210,8 +214,8 @@ export default function HistoryContent() {
               <h3>HTL (meters)</h3>
               {hasHtl ? (
                 <Trend
-                  timestamps={visible.filter((r) => typeof r.htl === "number").map((r) => r.ts)}
-                  values={visible.filter((r) => typeof r.htl === "number").map((r) => r.htl)}
+                  timestamps={visible.filter((r) => typeof r.htl_mm === "number").map((r) => r.ts)}
+                  values={visible.filter((r) => typeof r.htl_mm === "number").map((r) => r.htl_mm / 1000)}
                   color="var(--metric-htl)"
                   label="HTL (m)"
                   unit=" m"
@@ -262,7 +266,7 @@ export default function HistoryContent() {
                         <span
                           key={r._key}
                           className={`status-timeline-seg ${fault ? "fault" : "ok"}`}
-                          title={`${r.ts ? new Date(r.ts).toLocaleString() : ""} — X:${r.x_status} Y:${r.y_status}`}
+                          title={`${r.ts ? dateTime24(r.ts) : ""} — X:${r.x_status} Y:${r.y_status}`}
                         />
                       );
                     })}
@@ -318,10 +322,10 @@ export default function HistoryContent() {
                   <tbody>
                     {[...visible].reverse().slice(0, 25).map((r) => (
                       <tr key={r._key}>
-                        <td>{r.ts ? new Date(r.ts).toLocaleString() : "--"}</td>
-                        <td>{Math.round(Number(r.x_m) * 1000)}</td>
-                        <td>{Math.round(Number(r.y_m) * 1000)}</td>
-                        <td>{typeof r.htl === "number" ? r.htl.toFixed(3) : "--"}</td>
+                        <td>{r.ts ? dateTime24(r.ts) : "--"}</td>
+                        <td>{typeof r.x_mm === "number" ? Math.round(r.x_mm) : "--"}</td>
+                        <td>{typeof r.y_mm === "number" ? Math.round(r.y_mm) : "--"}</td>
+                        <td>{typeof r.htl_mm === "number" ? (r.htl_mm / 1000).toFixed(3) : "--"}</td>
                         <td>{hasTempFault(r.temp_c) ? "—" : Number(r.temp_c).toFixed(1)}</td>
                         <td>{typeof r.voltage_v === "number" ? r.voltage_v.toFixed(1) : "--"}</td>
                         <td>{typeof r.solar_v === "number" ? r.solar_v.toFixed(1) : "--"}</td>

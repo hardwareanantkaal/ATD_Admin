@@ -1,11 +1,14 @@
-// Short axis label: time of day, plus the date when the window spans days.
+"use client";
+import { useState } from "react";
+import { dateTime24, dayTime24, time24 } from "@/lib/formatTime";
+
 function axisLabel(ms, spansDays) {
-  const d = new Date(ms);
-  const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  return spansDays ? `${d.toLocaleDateString([], { day: "2-digit", month: "short" })} ${time}` : time;
+  return spansDays ? dayTime24(ms) : time24(ms);
 }
 
 export default function Trend({ values, color, label, unit, series, timestamps }) {
+  const [hoverIndex, setHoverIndex] = useState(null);
+
   const allSeries = series ?? [{ values, color, label }];
   if (!allSeries.some((s) => s.values.length >= 2)) {
     return (
@@ -20,25 +23,80 @@ export default function Trend({ values, color, label, unit, series, timestamps }
   const min = Math.min(...allValues);
   const max = Math.max(...allValues);
   const span = max - min || 1;
+  const pointCount = Math.max(...allSeries.map((s) => s.values.length));
+
+  const xAt = (i, count) => pad + (count > 1 ? (i / (count - 1)) * (w - pad * 2) : 0);
+  const yAt = (v) => h - pad - ((v - min) / span) * (h - pad * 2);
 
   function pathFor(vals) {
     if (vals.length < 2) return "";
-    return vals
-      .map((v, i) => {
-        const x = pad + (i / (vals.length - 1)) * (w - pad * 2);
-        const y = h - pad - ((v - min) / span) * (h - pad * 2);
-        return `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`;
-      })
-      .join(" ");
+    return vals.map((v, i) => `${i ? "L" : "M"}${xAt(i, vals.length).toFixed(1)},${yAt(v).toFixed(1)}`).join(" ");
   }
+
+  function handleMove(e) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (rect.width === 0) return;
+    const ratio = (e.clientX - rect.left) / rect.width;
+    setHoverIndex(Math.max(0, Math.min(pointCount - 1, Math.round(ratio * (pointCount - 1)))));
+  }
+
+  const hoverTime = hoverIndex !== null && timestamps ? timestamps[hoverIndex] : null;
+  const hoverPct = hoverIndex !== null && pointCount > 1 ? (hoverIndex / (pointCount - 1)) * 100 : 0;
 
   return (
     <div className="trend">
-      <svg viewBox={`0 0 ${w} ${h}`} role="img" aria-label={`${allSeries.map((s) => s.label).join(", ")} over the last readings`}>
-        {allSeries.map((s) => (
-          <path key={s.label} d={pathFor(s.values)} fill="none" stroke={s.color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
-        ))}
-      </svg>
+      <div
+        className="trend-plot"
+        onMouseMove={handleMove}
+        onMouseLeave={() => setHoverIndex(null)}
+      >
+        <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img" aria-label={`${allSeries.map((s) => s.label).join(", ")} over time`}>
+          {allSeries.map((s) => (
+            <path key={s.label} d={pathFor(s.values)} fill="none" stroke={s.color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+          ))}
+
+          {hoverIndex !== null && (
+            <>
+              <line
+                x1={xAt(hoverIndex, pointCount)}
+                x2={xAt(hoverIndex, pointCount)}
+                y1={0}
+                y2={h}
+                stroke="currentColor"
+                strokeWidth="1"
+                strokeDasharray="3 3"
+                opacity="0.35"
+                vectorEffect="non-scaling-stroke"
+              />
+              {allSeries.map((s) => {
+                const v = s.values[hoverIndex];
+                if (typeof v !== "number" || Number.isNaN(v)) return null;
+                return <circle key={s.label} cx={xAt(hoverIndex, s.values.length)} cy={yAt(v)} r="3" fill={s.color} stroke="#fff" strokeWidth="1.5" />;
+              })}
+            </>
+          )}
+        </svg>
+
+        {hoverIndex !== null && (
+          <div
+            className="trend-tooltip"
+            style={{ left: `${hoverPct}%`, transform: `translateX(${hoverPct > 70 ? "-90%" : hoverPct < 30 ? "-10%" : "-50%"})` }}
+          >
+            {hoverTime && <div className="trend-tooltip-time">{dateTime24(hoverTime)}</div>}
+            {allSeries.map((s) => {
+              const v = s.values[hoverIndex];
+              if (typeof v !== "number" || Number.isNaN(v)) return null;
+              return (
+                <div key={s.label} className="trend-tooltip-row">
+                  <span className="trend-legend-swatch" style={{ background: s.color }} />
+                  <span>{s.label}</span>
+                  <strong>{v.toFixed(Math.abs(v) >= 100 ? 0 : 2)}</strong>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {timestamps && timestamps.length >= 2 && (
         <div className="trend-axis">

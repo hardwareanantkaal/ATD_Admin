@@ -7,6 +7,7 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/AuthContext";
 import { usePoles } from "@/lib/usePoles";
 import { hasTempFault, isOnline } from "@/lib/deviceStatus";
+import { dateTime24 } from "@/lib/formatTime";
 import AppShell from "@/components/AppShell";
 import StatusDot from "@/components/StatusDot";
 
@@ -88,6 +89,12 @@ const icons = {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <line x1="19" y1="12" x2="5" y2="12" />
       <polyline points="12 19 5 12 12 5" />
+    </svg>
+  ),
+  clock: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <polyline points="12 7 12 12 15 14" />
     </svg>
   ),
 };
@@ -210,10 +217,17 @@ export default function LiveContent() {
           <div>
             <strong>Device Offline</strong>
             <p>
-              {pole.updatedAt ? `Last seen: ${new Date(pole.updatedAt).toLocaleString()} · ${ago(now - pole.updatedAt)}` : "No readings received yet."}
+              {pole.updatedAt ? `Last seen: ${dateTime24(pole.updatedAt)} · ${ago(now - pole.updatedAt)}` : "No readings received yet."}
             </p>
           </div>
         </div>
+      )}
+
+      {online && (
+        <p className="stamp reading-time">
+          {icons.clock}
+          {pole.updatedAt ? `Last reading: ${dateTime24(pole.updatedAt)} · ${ago(now - pole.updatedAt)}` : "No readings received yet."}
+        </p>
       )}
 
       <div className="pole-metrics live-metrics">
@@ -222,9 +236,8 @@ export default function LiveContent() {
             <span className="pole-metric-label">X Position</span>
             <span className="pole-metric-icon">{icons.radio}</span>
           </div>
-          {/* Payload is in metres (iot.ino divides the sensor's mm by 1000). */}
           <span className="pole-metric-value" style={{ color: "var(--metric-x)" }}>
-            {Math.round(Number(pole.x_m) * 1000)} mm
+            {typeof pole.x_mm === "number" ? `${Math.round(pole.x_mm)} mm` : "—"}
           </span>
           <StatusDot tone={pole.x_status === "OK" ? "good" : "critical"}>{pole.x_status}</StatusDot>
         </div>
@@ -234,7 +247,7 @@ export default function LiveContent() {
             <span className="pole-metric-icon">{icons.radio}</span>
           </div>
           <span className="pole-metric-value" style={{ color: "var(--metric-y)" }}>
-            {Math.round(Number(pole.y_m) * 1000)} mm
+            {typeof pole.y_mm === "number" ? `${Math.round(pole.y_mm)} mm` : "—"}
           </span>
           <StatusDot tone={pole.y_status === "OK" ? "good" : "critical"}>{pole.y_status}</StatusDot>
         </div>
@@ -243,8 +256,9 @@ export default function LiveContent() {
             <span className="pole-metric-label">HTL</span>
             <span className="pole-metric-icon">{icons.ruler}</span>
           </div>
+          {/* Device sends millimetres (htl_mm); shown in metres. */}
           <span className="pole-metric-value" style={{ color: "var(--metric-htl)" }}>
-            {typeof pole.htl === "number" ? `${pole.htl.toFixed(3)} m` : "—"}
+            {typeof pole.htl_mm === "number" ? `${(pole.htl_mm / 1000).toFixed(3)} m` : "—"}
           </span>
         </div>
         <div className="pole-metric">

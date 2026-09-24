@@ -6,14 +6,14 @@ const BATCH_SIZE = 100;
 function validate(body) {
   if (!body || typeof body !== "object") return "Body must be a JSON object.";
   if (typeof body.pole_id !== "string" || !body.pole_id) return "pole_id must be a non-empty string.";
-  for (const key of ["x_m", "y_m", "temp_c", "voltage_v"]) {
+  for (const key of ["x_mm", "y_mm", "temp_c", "voltage_v"]) {
     if (typeof body[key] !== "number" || !Number.isFinite(body[key])) return `${key} must be a number.`;
   }
   for (const key of ["x_status", "y_status"]) {
     if (typeof body[key] !== "string" || !body[key]) return `${key} must be a non-empty string.`;
   }
-  // Optional until the firmware ships them - only type-checked when present.
-  for (const key of ["htl", "solar_v"]) {
+  // Optional - only type-checked when present.
+  for (const key of ["htl_mm", "solar_v"]) {
     if (body[key] !== undefined && (typeof body[key] !== "number" || !Number.isFinite(body[key]))) {
       return `${key} must be a number when provided.`;
     }
@@ -36,10 +36,10 @@ export async function POST(request) {
   const error = validate(body);
   if (error) return Response.json({ error }, { status: 400 });
 
-  const { pole_id, x_m, y_m, temp_c, voltage_v, x_status, y_status, htl, solar_v } = body;
-  const fields = { x_m, y_m, temp_c, voltage_v, x_status, y_status };
-  // Firestore rejects undefined, so only set these once the device sends them.
-  if (typeof htl === "number") fields.htl = htl;
+  const { pole_id, x_mm, y_mm, temp_c, voltage_v, x_status, y_status, htl_mm, solar_v } = body;
+  const fields = { x_mm, y_mm, temp_c, voltage_v, x_status, y_status };
+  // Firestore rejects undefined, so only set these when the device sends them.
+  if (typeof htl_mm === "number") fields.htl_mm = htl_mm;
   if (typeof solar_v === "number") fields.solar_v = solar_v;
   // FieldValue.serverTimestamp() can't be used inside an array element, so the
   // API route's own clock stands in for it (this runs server-side, not on the device).
