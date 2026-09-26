@@ -13,16 +13,6 @@ import StatusDot from "@/components/StatusDot";
 // inert until real battery sensing ships, but the UI is ready for it.
 const LOW_BATTERY_V = 3.5;
 
-function ago(ms) {
-  const s = Math.max(0, Math.round(ms / 1000));
-  if (s < 60) return `${s}s ago`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
-
 const icons = {
   radio: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -232,16 +222,7 @@ export default function Dashboard() {
                       </td>
                       <td>{typeof p.voltage_v === "number" ? `${p.voltage_v.toFixed(1)} V` : "--"}</td>
                       <td>{typeof p.solar_v === "number" ? `${p.solar_v.toFixed(1)} V` : "--"}</td>
-                      <td>
-                        {p.updatedAt ? (
-                          <>
-                            <div>{dateTime24(p.updatedAt)}</div>
-                            <div className="muted" style={{ fontSize: "0.8rem" }}>{ago(now - p.updatedAt)}</div>
-                          </>
-                        ) : (
-                          "--"
-                        )}
-                      </td>
+                      <td>{p.updatedAt ? dateTime24(p.updatedAt) : "--"}</td>
                       <td>
                         <div className="table-actions">
                           <Link href={`/live?pole=${encodeURIComponent(p.id)}`} className="btn-table-action btn-live">
