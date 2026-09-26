@@ -830,6 +830,24 @@ button {
   font-weight: 500;
 }
 
+.date-field {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.date-field input {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.85rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
 .show-count select {
   padding: 0.35rem 0.6rem;
 }
@@ -978,9 +996,10 @@ button {
   color: var(--text-muted);
 }
 
+/* Height matches the viewBox height so the SVG scales 1:1 and dots stay round. */
 .trend svg {
   width: 100%;
-  height: 100px;
+  height: 120px;
   display: block;
 }
 
@@ -1051,6 +1070,55 @@ button {
   font-size: 1.25rem;
   font-weight: 700;
   margin: 0;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.pagination-buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.pagination-buttons .btn-secondary {
+  padding: 0.4rem 0.8rem;
+}
+
+.page-number {
+  min-width: 2.25rem;
+  height: 2.25rem;
+  padding: 0 0.5rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.page-number:hover {
+  background: var(--bg-main);
+  border-color: #cbd5e1;
+}
+
+.page-number.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.pagination-gap {
+  color: var(--text-light);
+  padding: 0 0.15rem;
+  align-self: flex-end;
 }
 
 .scroll {

@@ -23,12 +23,41 @@ const backIcon = (
 // Readings are stored 100 per batch doc and the device reports ~every 60s, so
 // `batches` is how many docs to pull to comfortably cover each window.
 const RANGES = [
-  { id: "recent", label: "Last 50 readings", batches: 2, ms: null },
+  { id: "recent", label: "Last 50 readings", batches: 2, ms: null, cap: 50 },
   { id: "1h", label: "Last hour", batches: 3, ms: 60 * 60 * 1000 },
   { id: "6h", label: "Last 6 hours", batches: 8, ms: 6 * 60 * 60 * 1000 },
   { id: "24h", label: "Last 24 hours", batches: 20, ms: 24 * 60 * 60 * 1000 },
   { id: "7d", label: "Last 7 days", batches: 60, ms: 7 * 24 * 60 * 60 * 1000 },
+  { id: "all", label: "All data", batches: 200, ms: null, cap: null },
 ];
+
+const PAGE_SIZES = [25, 50, 100, 200];
+const PAGE_WINDOW = 5;
+
+// Up to PAGE_WINDOW page numbers around the current one, with the first/last
+// page kept reachable behind an ellipsis so you can still jump to either end.
+function pageItems(current, total) {
+  if (total <= PAGE_WINDOW) return Array.from({ length: total }, (_, i) => i);
+
+  let start = Math.max(0, current - Math.floor(PAGE_WINDOW / 2));
+  let end = start + PAGE_WINDOW;
+  if (end > total) {
+    end = total;
+    start = total - PAGE_WINDOW;
+  }
+
+  const items = [];
+  if (start > 0) {
+    items.push(0);
+    if (start > 1) items.push("gap-start");
+  }
+  for (let i = start; i < end; i++) items.push(i);
+  if (end < total) {
+    if (end < total - 1) items.push("gap-end");
+    items.push(total - 1);
+  }
+  return items;
+}
 
 function csvCell(value) {
   const s = value === null || value === undefined ? "" : String(value);
@@ -43,10 +72,19 @@ export default function HistoryContent() {
   const [selectedPoleId, setSelectedPoleId] = useState(null);
   const [history, setHistory] = useState([]);
   const [rangeId, setRangeId] = useState("recent");
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
+  const [faultsOnly, setFaultsOnly] = useState(false);
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const [error, setError] = useState("");
 
   const range = RANGES.find((r) => r.id === rangeId) ?? RANGES[0];
+  const usingDates = Boolean(fromDate || toDate);
+  // A custom date window can reach much further back than the preset it replaces,
+  // so pull the deepest batch count while one is active.
+  const batchesToLoad = usingDates ? 200 : range.batches;
 
   // Coarse tick - this only moves a time-window cutoff, so per-second precision
   // would just churn the filter for nothing.
@@ -68,7 +106,7 @@ export default function HistoryContent() {
 
   useEffect(() => {
     if (!effectiveSelectedId) return;
-    const q = query(collection(db, "device", effectiveSelectedId, "sensor_data"), orderBy("batch", "desc"), limit(range.batches));
+    const q = query(collection(db, "device", effectiveSelectedId, "sensor_data"), orderBy("batch", "desc"), limit(batchesToLoad));
     return onSnapshot(q, (snap) => {
       const batches = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => a.batch - b.batch);
       const rows = batches.flatMap((b) =>
@@ -76,15 +114,39 @@ export default function HistoryContent() {
       );
       setHistory(rows);
     });
-  }, [effectiveSelectedId, range.batches]);
+  }, [effectiveSelectedId, batchesToLoad]);
 
-  // "Last N readings" takes the tail; the timed windows cut by timestamp.
-  // The cutoff comes from ticking state so the filter stays pure during render.
+  // A date window overrides the preset range; the fault toggle stacks on top of
+  // whichever is active. The cutoff uses ticking state so this stays pure.
   const visible = useMemo(() => {
-    if (!range.ms) return history.slice(-50);
-    const cutoff = now - range.ms;
-    return history.filter((r) => typeof r.ts === "number" && r.ts >= cutoff);
-  }, [history, range, now]);
+    let rows = history;
+
+    if (fromDate || toDate) {
+      const fromMs = fromDate ? new Date(`${fromDate}T00:00:00`).getTime() : null;
+      const toMs = toDate ? new Date(`${toDate}T23:59:59.999`).getTime() : null;
+      rows = rows.filter(
+        (r) => typeof r.ts === "number" && (fromMs === null || r.ts >= fromMs) && (toMs === null || r.ts <= toMs)
+      );
+    } else if (range.cap) {
+      rows = rows.slice(-range.cap);
+    } else if (range.ms) {
+      const cutoff = now - range.ms;
+      rows = rows.filter((r) => typeof r.ts === "number" && r.ts >= cutoff);
+    }
+
+    if (faultsOnly) {
+      rows = rows.filter((r) => r.x_status !== "OK" || r.y_status !== "OK");
+    }
+    return rows;
+  }, [history, range, now, faultsOnly, fromDate, toDate]);
+
+  // Newest first for the table, then paged so older readings stay reachable.
+  const ordered = useMemo(() => [...visible].reverse(), [visible]);
+  const pageCount = Math.max(1, Math.ceil(ordered.length / pageSize));
+  // Clamped rather than reset in an effect, so changing range/page size can't
+  // strand you on a page that no longer exists.
+  const safePage = Math.min(page, pageCount - 1);
+  const pageRows = ordered.slice(safePage * pageSize, (safePage + 1) * pageSize);
 
   function downloadCsv() {
     const header = ["Time", "X (mm)", "Y (mm)", "HTL (m)", "Temp (C)", "Battery (V)", "Solar (V)", "X status", "Y status"];
@@ -182,6 +244,62 @@ export default function HistoryContent() {
             <span className="muted" style={{ marginLeft: "auto" }}>
               {visible.length} reading{visible.length === 1 ? "" : "s"}
             </span>
+          </div>
+
+          <div className="filter-bar">
+            <button
+              className={`filter-pill ${faultsOnly ? "active" : ""}`}
+              onClick={() => {
+                setFaultsOnly(!faultsOnly);
+                setPage(0);
+              }}
+            >
+              Faults only
+            </button>
+
+            <label className="date-field">
+              From
+              <input
+                type="date"
+                value={fromDate}
+                max={toDate || undefined}
+                onChange={(e) => {
+                  setFromDate(e.target.value);
+                  setPage(0);
+                }}
+              />
+            </label>
+            <label className="date-field">
+              To
+              <input
+                type="date"
+                value={toDate}
+                min={fromDate || undefined}
+                onChange={(e) => {
+                  setToDate(e.target.value);
+                  setPage(0);
+                }}
+              />
+            </label>
+
+            {usingDates && (
+              <button
+                className="link"
+                onClick={() => {
+                  setFromDate("");
+                  setToDate("");
+                  setPage(0);
+                }}
+              >
+                Clear dates
+              </button>
+            )}
+
+            {usingDates && (
+              <span className="muted" style={{ marginLeft: "auto" }}>
+                Date range overrides the presets above
+              </span>
+            )}
           </div>
 
           {poles.length > 1 && (
@@ -320,7 +438,7 @@ export default function HistoryContent() {
                     </tr>
                   </thead>
                   <tbody>
-                    {[...visible].reverse().slice(0, 25).map((r) => (
+                    {pageRows.map((r) => (
                       <tr key={r._key}>
                         <td>{r.ts ? dateTime24(r.ts) : "--"}</td>
                         <td>{typeof r.x_mm === "number" ? Math.round(r.x_mm) : "--"}</td>
@@ -335,6 +453,47 @@ export default function HistoryContent() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {ordered.length > 0 && (
+              <div className="pagination">
+                <label className="show-count">
+                  Rows
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setPage(0);
+                    }}
+                  >
+                    {PAGE_SIZES.map((n) => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <span className="muted">
+                  {safePage * pageSize + 1}-{Math.min((safePage + 1) * pageSize, ordered.length)} of {ordered.length}
+                  {pageCount > 1 ? ` · page ${safePage + 1}/${pageCount}` : ""}
+                </span>
+
+                <div className="pagination-buttons">
+                  {pageItems(safePage, pageCount).map((item) =>
+                    typeof item === "string" ? (
+                      <span key={item} className="pagination-gap">…</span>
+                    ) : (
+                      <button
+                        key={item}
+                        className={`page-number ${item === safePage ? "active" : ""}`}
+                        onClick={() => setPage(item)}
+                        aria-current={item === safePage ? "page" : undefined}
+                      >
+                        {item + 1}
+                      </button>
+                    )
+                  )}
+                </div>
               </div>
             )}
           </section>

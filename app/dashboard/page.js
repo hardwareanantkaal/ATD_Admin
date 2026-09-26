@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/lib/AuthContext";
 import { usePoles } from "@/lib/usePoles";
 import { isOnline } from "@/lib/deviceStatus";
+import { dateTime24 } from "@/lib/formatTime";
 import AppShell from "@/components/AppShell";
 import StatusDot from "@/components/StatusDot";
 
@@ -231,7 +232,16 @@ export default function Dashboard() {
                       </td>
                       <td>{typeof p.voltage_v === "number" ? `${p.voltage_v.toFixed(1)} V` : "--"}</td>
                       <td>{typeof p.solar_v === "number" ? `${p.solar_v.toFixed(1)} V` : "--"}</td>
-                      <td>{p.updatedAt ? ago(now - p.updatedAt) : "--"}</td>
+                      <td>
+                        {p.updatedAt ? (
+                          <>
+                            <div>{dateTime24(p.updatedAt)}</div>
+                            <div className="muted" style={{ fontSize: "0.8rem" }}>{ago(now - p.updatedAt)}</div>
+                          </>
+                        ) : (
+                          "--"
+                        )}
+                      </td>
                       <td>
                         <div className="table-actions">
                           <Link href={`/live?pole=${encodeURIComponent(p.id)}`} className="btn-table-action btn-live">

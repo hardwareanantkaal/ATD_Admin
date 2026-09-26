@@ -1,13 +1,31 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { dateTime24, dayTime24, time24 } from "@/lib/formatTime";
 
 function axisLabel(ms, spansDays) {
   return spansDays ? dayTime24(ms) : time24(ms);
 }
 
+// Past this many points the dots overlap into a solid band and just add
+// thousands of DOM nodes, so the line alone reads better.
+const DOT_LIMIT = 150;
+
 export default function Trend({ values, color, label, unit, series, timestamps }) {
   const [hoverIndex, setHoverIndex] = useState(null);
+  const plotRef = useRef(null);
+  // The viewBox is sized to the rendered width so one SVG unit == one CSS pixel.
+  // Without this the SVG stretches horizontally and every dot renders as an ellipse.
+  const [plotWidth, setPlotWidth] = useState(600);
+
+  useEffect(() => {
+    const el = plotRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) => {
+      setPlotWidth(Math.max(1, Math.round(entry.contentRect.width)));
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const allSeries = series ?? [{ values, color, label }];
   if (!allSeries.some((s) => s.values.length >= 2)) {
@@ -18,7 +36,7 @@ export default function Trend({ values, color, label, unit, series, timestamps }
     );
   }
 
-  const w = 600, h = 120, pad = 6;
+  const w = plotWidth, h = 120, pad = 6;
   const allValues = allSeries.flatMap((s) => s.values);
   const min = Math.min(...allValues);
   const max = Math.max(...allValues);
@@ -47,6 +65,7 @@ export default function Trend({ values, color, label, unit, series, timestamps }
     <div className="trend">
       <div
         className="trend-plot"
+        ref={plotRef}
         onMouseMove={handleMove}
         onMouseLeave={() => setHoverIndex(null)}
       >
@@ -54,6 +73,24 @@ export default function Trend({ values, color, label, unit, series, timestamps }
           {allSeries.map((s) => (
             <path key={s.label} d={pathFor(s.values)} fill="none" stroke={s.color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
           ))}
+
+          {pointCount <= DOT_LIMIT &&
+            allSeries.map((s) =>
+              s.values.map((v, i) =>
+                typeof v === "number" && !Number.isNaN(v) ? (
+                  <circle
+                    key={`${s.label}-${i}`}
+                    cx={xAt(i, s.values.length)}
+                    cy={yAt(v)}
+                    r="2.5"
+                    fill={s.color}
+                    stroke="#fff"
+                    strokeWidth="1"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ) : null
+              )
+            )}
 
           {hoverIndex !== null && (
             <>
