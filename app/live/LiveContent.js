@@ -6,7 +6,7 @@ import { doc, onSnapshot, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/AuthContext";
 import { usePoles } from "@/lib/usePoles";
-import { hasTempFault, isOnline } from "@/lib/deviceStatus";
+import { hasTempFault, isLowBattery, isOnline } from "@/lib/deviceStatus";
 import { dateTime24 } from "@/lib/formatTime";
 import AppShell from "@/components/AppShell";
 import StatusDot from "@/components/StatusDot";
@@ -111,6 +111,10 @@ export default function LiveContent() {
   const [lat, setLat] = useState("");
   const [lng, setLng] = useState("");
   const [gpsError, setGpsError] = useState("");
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [htlInput, setHtlInput] = useState("");
+  const [installedInput, setInstalledInput] = useState("");
+  const [profileError, setProfileError] = useState("");
 
   useEffect(() => {
     if (!loading && !user) router.replace("/");
@@ -146,6 +150,50 @@ export default function LiveContent() {
     setLat(String(coords.lat));
     setLng(String(coords.lng));
     setGpsError("");
+  }
+
+  function openProfileEditor() {
+    setHtlInput(typeof deviceDoc?.htl_mm === "number" ? String(deviceDoc.htl_mm / 1000) : "");
+    // <input type="date"> wants YYYY-MM-DD in local time.
+    const installed = deviceDoc?.installedAt ? new Date(deviceDoc.installedAt) : null;
+    setInstalledInput(
+      installed
+        ? `${installed.getFullYear()}-${String(installed.getMonth() + 1).padStart(2, "0")}-${String(installed.getDate()).padStart(2, "0")}`
+        : ""
+    );
+    setProfileError("");
+    setEditingProfile(true);
+  }
+
+  async function saveProfile(e) {
+    e.preventDefault();
+    const updates = {};
+
+    if (htlInput.trim() !== "") {
+      const metres = Number(htlInput);
+      if (!Number.isFinite(metres) || metres < 0) {
+        setProfileError("Enter HTL as a positive number of metres, e.g. 1.275.");
+        return;
+      }
+      updates.htl_mm = Math.round(metres * 1000);
+    }
+
+    if (installedInput) {
+      updates.installedAt = new Date(`${installedInput}T00:00:00`).getTime();
+    }
+
+    if (Object.keys(updates).length === 0) {
+      setEditingProfile(false);
+      return;
+    }
+
+    try {
+      await setDoc(doc(db, "device", effectiveId), updates, { merge: true });
+      setEditingProfile(false);
+      setProfileError("");
+    } catch {
+      setProfileError("Could not save the setup. Check your permissions.");
+    }
   }
 
   async function saveLocation(e) {
@@ -198,7 +246,7 @@ export default function LiveContent() {
           </Link>
           <div>
             <h1>{pole.id}</h1>
-            {pole.mac && <p className="detail-mac">{pole.mac}</p>}
+            {pole.device_id && <p className="detail-mac">{pole.device_id}</p>}
           </div>
         </div>
         <div className="detail-toolbar-actions">
@@ -256,10 +304,11 @@ export default function LiveContent() {
             <span className="pole-metric-label">HTL</span>
             <span className="pole-metric-icon">{icons.ruler}</span>
           </div>
-          {/* Device sends millimetres (htl_mm); shown in metres. */}
+          {/* Fixed per-pole setup value from the device profile, not telemetry. */}
           <span className="pole-metric-value" style={{ color: "var(--metric-htl)" }}>
-            {typeof pole.htl_mm === "number" ? `${(pole.htl_mm / 1000).toFixed(3)} m` : "—"}
+            {typeof deviceDoc?.htl_mm === "number" ? `${(deviceDoc.htl_mm / 1000).toFixed(3)} m` : "—"}
           </span>
+          <span className="pole-metric-sub">fixed</span>
         </div>
         <div className="pole-metric">
           <div className="pole-metric-head">
@@ -285,6 +334,10 @@ export default function LiveContent() {
           <span className="pole-metric-value" style={{ color: "var(--metric-battery)" }}>
             {typeof pole.voltage_v === "number" ? `${pole.voltage_v.toFixed(1)} V` : "—"}
           </span>
+          {isLowBattery(pole.voltage_v) && <StatusDot tone="critical">Low battery</StatusDot>}
+          {typeof pole.batt_min === "number" && (
+            <span className="pole-metric-sub">min {pole.batt_min.toFixed(1)} V</span>
+          )}
         </div>
         <div className="pole-metric">
           <div className="pole-metric-head">
@@ -295,6 +348,75 @@ export default function LiveContent() {
             {typeof pole.solar_v === "number" ? `${pole.solar_v.toFixed(1)} V` : "—"}
           </span>
         </div>
+      </div>
+
+      <div className="gps-card">
+        <div className="gps-card-head">
+          <span className="gps-card-title">
+            {icons.ruler}
+            Device profile
+          </span>
+          {!editingProfile && (
+            <button className="btn-secondary" onClick={openProfileEditor}>
+              Edit setup
+            </button>
+          )}
+        </div>
+
+        <div className="profile-grid">
+          <div className="profile-field">
+            <span className="profile-label">Pole ID</span>
+            <span className="profile-value">{deviceDoc?.pole_id ?? pole.id}</span>
+          </div>
+          <div className="profile-field">
+            <span className="profile-label">Device ID (MAC)</span>
+            <span className="profile-value mono">{pole.device_id ?? deviceDoc?.device_id ?? "—"}</span>
+          </div>
+          <div className="profile-field">
+            <span className="profile-label">HTL</span>
+            <span className="profile-value">
+              {typeof deviceDoc?.htl_mm === "number" ? `${(deviceDoc.htl_mm / 1000).toFixed(3)} m` : "Not set"}
+            </span>
+          </div>
+          <div className="profile-field">
+            <span className="profile-label">Installed</span>
+            <span className="profile-value">{deviceDoc?.installedAt ? dateTime24(deviceDoc.installedAt) : "—"}</span>
+          </div>
+          <div className="profile-field">
+            <span className="profile-label">Created</span>
+            <span className="profile-value">{deviceDoc?.createdAt ? dateTime24(deviceDoc.createdAt) : "—"}</span>
+          </div>
+        </div>
+
+        {editingProfile && (
+          <form className="gps-form" onSubmit={saveProfile}>
+            <div className="gps-latlng">
+              <label className="gps-field">
+                HTL (metres)
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={htlInput}
+                  onChange={(e) => setHtlInput(e.target.value)}
+                  placeholder="1.275"
+                />
+              </label>
+              <label className="gps-field">
+                Installation date
+                <input type="date" value={installedInput} onChange={(e) => setInstalledInput(e.target.value)} />
+              </label>
+            </div>
+
+            {profileError && <p className="error" role="alert">{profileError}</p>}
+
+            <div className="gps-form-actions">
+              <button type="submit" className="primary">Save setup</button>
+              <button type="button" className="btn-secondary" onClick={() => setEditingProfile(false)}>
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
       </div>
 
       <div className="gps-card">

@@ -4,14 +4,13 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/AuthContext";
 import { usePoles } from "@/lib/usePoles";
-import { isOnline } from "@/lib/deviceStatus";
+import { isLowBattery, isOnline } from "@/lib/deviceStatus";
 import { dateTime24 } from "@/lib/formatTime";
 import AppShell from "@/components/AppShell";
 import StatusDot from "@/components/StatusDot";
 
 // Firmware sends a fixed 5.0 V today (see iot.ino SUPPLY_V) - this filter is
 // inert until real battery sensing ships, but the UI is ready for it.
-const LOW_BATTERY_V = 3.5;
 
 const icons = {
   radio: (
@@ -78,11 +77,12 @@ export default function Dashboard() {
       poles.map((p) => {
         const online = isOnline(p.updatedAt, now);
         const hasFault = p.x_status !== "OK" || p.y_status !== "OK";
+        const lowBattery = isLowBattery(p.voltage_v);
         return {
           ...p,
           online,
-          alert: !online || hasFault,
-          lowBattery: typeof p.voltage_v === "number" && p.voltage_v < LOW_BATTERY_V,
+          lowBattery,
+          alert: !online || hasFault || lowBattery,
         };
       }),
     [poles, now]
@@ -90,7 +90,11 @@ export default function Dashboard() {
 
   const filtered = useMemo(() => {
     return enriched
-      .filter((p) => !search || p.id.toLowerCase().includes(search.toLowerCase()))
+      .filter((p) => {
+        if (!search) return true;
+        const needle = search.toLowerCase();
+        return p.id.toLowerCase().includes(needle) || (p.device_id ?? "").toLowerCase().includes(needle);
+      })
       .filter((p) => {
         if (filter === "alerts") return p.alert;
         if (filter === "offline") return !p.online;
@@ -160,7 +164,7 @@ export default function Dashboard() {
               {icons.search}
               <input
                 type="text"
-                placeholder="Search by Pole ID..."
+                placeholder="Search by Pole ID or Device ID..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -197,6 +201,7 @@ export default function Dashboard() {
                 <thead>
                   <tr>
                     <th>Pole ID</th>
+                    <th>Device ID</th>
                     <th>Status</th>
                     <th>Alert</th>
                     <th>Battery</th>
@@ -208,9 +213,9 @@ export default function Dashboard() {
                 <tbody>
                   {filtered.map((p) => (
                     <tr key={p.id}>
-                      <td>
-                        <div style={{ fontWeight: 700 }}>{p.id}</div>
-                        {p.mac && <div className="muted" style={{ fontSize: "0.8rem", fontFamily: "monospace" }}>{p.mac}</div>}
+                      <td style={{ fontWeight: 700 }}>{p.id}</td>
+                      <td style={{ fontFamily: "monospace" }}>
+                        {p.device_id || <span className="muted">--</span>}
                       </td>
                       <td>
                         <StatusDot tone={p.online ? "good" : "warning"} pulse={p.online}>
@@ -220,7 +225,17 @@ export default function Dashboard() {
                       <td>
                         {p.alert ? <StatusDot tone="warning">Alert</StatusDot> : <span className="muted">--</span>}
                       </td>
-                      <td>{typeof p.voltage_v === "number" ? `${p.voltage_v.toFixed(1)} V` : "--"}</td>
+                      <td>
+                        {typeof p.voltage_v === "number" ? (
+                          p.lowBattery ? (
+                            <StatusDot tone="critical">{p.voltage_v.toFixed(1)} V</StatusDot>
+                          ) : (
+                            `${p.voltage_v.toFixed(1)} V`
+                          )
+                        ) : (
+                          "--"
+                        )}
+                      </td>
                       <td>{typeof p.solar_v === "number" ? `${p.solar_v.toFixed(1)} V` : "--"}</td>
                       <td>{p.updatedAt ? dateTime24(p.updatedAt) : "--"}</td>
                       <td>

@@ -149,12 +149,11 @@ export default function HistoryContent() {
   const pageRows = ordered.slice(safePage * pageSize, (safePage + 1) * pageSize);
 
   function downloadCsv() {
-    const header = ["Time", "X (mm)", "Y (mm)", "HTL (m)", "Temp (C)", "Battery (V)", "Solar (V)", "X status", "Y status"];
+    const header = ["Time", "X (mm)", "Y (mm)", "Temp (C)", "Battery (V)", "Solar (V)", "X status", "Y status"];
     const rows = visible.map((r) => [
       r.ts ? new Date(r.ts).toISOString() : "",
       typeof r.x_mm === "number" ? Math.round(r.x_mm) : "",
       typeof r.y_mm === "number" ? Math.round(r.y_mm) : "",
-      typeof r.htl_mm === "number" ? (r.htl_mm / 1000).toFixed(3) : "",
       hasTempFault(r.temp_c) ? "" : Number(r.temp_c).toFixed(1),
       typeof r.voltage_v === "number" ? r.voltage_v.toFixed(1) : "",
       typeof r.solar_v === "number" ? r.solar_v.toFixed(1) : "",
@@ -198,7 +197,6 @@ export default function HistoryContent() {
   const pole = poles.find((p) => p.id === effectiveSelectedId) ?? null;
   const hasVoltage = visible.some((r) => typeof r.voltage_v === "number");
   const hasSolar = visible.some((r) => typeof r.solar_v === "number");
-  const hasHtl = visible.some((r) => typeof r.htl_mm === "number");
   const times = visible.map((r) => r.ts).filter((t) => typeof t === "number");
 
   return (
@@ -216,7 +214,7 @@ export default function HistoryContent() {
               </Link>
               <div>
                 <h1>{effectiveSelectedId} — History</h1>
-                {pole?.mac && <p className="detail-mac">{pole.mac}</p>}
+                {pole?.device_id && <p className="detail-mac">{pole.device_id}</p>}
               </div>
             </div>
             <div className="detail-toolbar-actions">
@@ -328,20 +326,6 @@ export default function HistoryContent() {
                 ]}
               />
             </div>
-            <div className="chart-card">
-              <h3>HTL (meters)</h3>
-              {hasHtl ? (
-                <Trend
-                  timestamps={visible.filter((r) => typeof r.htl_mm === "number").map((r) => r.ts)}
-                  values={visible.filter((r) => typeof r.htl_mm === "number").map((r) => r.htl_mm / 1000)}
-                  color="var(--metric-htl)"
-                  label="HTL (m)"
-                  unit=" m"
-                />
-              ) : (
-                <p className="trend-empty">No data</p>
-              )}
-            </div>
           </div>
 
           <div className="chart-grid">
@@ -429,7 +413,6 @@ export default function HistoryContent() {
                       <th>Time</th>
                       <th>X (mm)</th>
                       <th>Y (mm)</th>
-                      <th>HTL (m)</th>
                       <th>Temp (°C)</th>
                       <th>Batt (V)</th>
                       <th>Solar (V)</th>
@@ -443,7 +426,6 @@ export default function HistoryContent() {
                         <td>{r.ts ? dateTime24(r.ts) : "--"}</td>
                         <td>{typeof r.x_mm === "number" ? Math.round(r.x_mm) : "--"}</td>
                         <td>{typeof r.y_mm === "number" ? Math.round(r.y_mm) : "--"}</td>
-                        <td>{typeof r.htl_mm === "number" ? (r.htl_mm / 1000).toFixed(3) : "--"}</td>
                         <td>{hasTempFault(r.temp_c) ? "—" : Number(r.temp_c).toFixed(1)}</td>
                         <td>{typeof r.voltage_v === "number" ? r.voltage_v.toFixed(1) : "--"}</td>
                         <td>{typeof r.solar_v === "number" ? r.solar_v.toFixed(1) : "--"}</td>

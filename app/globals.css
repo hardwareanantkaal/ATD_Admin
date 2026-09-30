@@ -613,6 +613,12 @@ button {
 }
 
 /* GPS card */
+.pole-metric-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .gps-card {
   background: var(--bg-panel);
   border: 1px solid var(--border);
@@ -636,6 +642,36 @@ button {
   gap: 0.5rem;
   font-weight: 700;
   color: var(--primary);
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 1rem;
+}
+
+.profile-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.profile-label {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.profile-value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.profile-value.mono {
+  font-family: monospace;
 }
 
 .gps-coords {
@@ -821,9 +857,13 @@ button {
   color: #fff;
 }
 
+/* Needs an explicit row direction - the global `label` rule sets column, which
+   stacks "Show / select / devices" onto three lines. */
 .show-count {
   display: flex;
+  flex-direction: row;
   align-items: center;
+  white-space: nowrap;
   gap: 0.5rem;
   font-size: 0.85rem;
   color: var(--text-muted);
