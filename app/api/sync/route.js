@@ -5,9 +5,10 @@ import { normalizeReading, readingsFromNode } from "@/lib/normalizeReading";
 
 const BATCH_SIZE = 100;
 
-// Server-side twin of lib/syncRtdbToFirestore.js. That one only runs while a
-// browser has the portal open; this runs on Vercel, so a scheduled ping keeps
-// history flowing with nobody's laptop on.
+// The only writer of telemetry history. Runs on Vercel, triggered by a
+// scheduled ping, so readings are stored whether or not anyone has the portal
+// open. A browser-side mirror used to do this too, but two writers parsing the
+// device's naive timestamp in different zones produced duplicate readings.
 export async function GET(request) {
   const key = new URL(request.url).searchParams.get("key");
   if (!process.env.SYNC_SECRET || key !== process.env.SYNC_SECRET) {

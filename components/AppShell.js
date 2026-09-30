@@ -1,12 +1,10 @@
 "use client";
 import AppHeader from "./AppHeader";
-import { useAuth } from "@/lib/AuthContext";
-import { useSyncRtdbToFirestore } from "@/lib/syncRtdbToFirestore";
 
+// Mirroring to Firestore is handled server-side by /api/sync on a schedule, so
+// there's deliberately no browser-side mirror here: two writers produced
+// duplicate readings, and it only ran while a tab happened to be open.
 export default function AppShell({ children }) {
-  const { user } = useAuth();
-  useSyncRtdbToFirestore(!!user);
-
   return (
     <div className="app-shell">
       <AppHeader />
